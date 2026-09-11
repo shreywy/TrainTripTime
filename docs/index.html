@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
+<title>TrainTripTime — know when to wake up for your GO train</title>
+<meta name="description" content="A self-hosted commute planner that works backwards from your arrival time through GO Transit and your local bus, with live data and a worked-out proof.">
+<link rel="icon" type="image/png" href="icon.png">
+<style>
+:root { --text:#f5f7fb; --muted:rgba(235,240,250,.64); --faint:rgba(235,240,250,.4); --accent:#6f9bff; --go:#45c07a; }
+* { box-sizing: border-box; }
+html { background: #000; }
+body { margin: 0; background: #000; color: var(--text); font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+#sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.glow { position: fixed; z-index: 0; pointer-events: none; border-radius: 50%; filter: blur(80px); opacity: .6; }
+.glow.a { width: 560px; height: 560px; left: -200px; top: 40px; background: radial-gradient(circle, rgba(170,185,215,.3), transparent 65%); }
+.glow.b { width: 700px; height: 700px; right: -300px; top: 700px; background: radial-gradient(circle, rgba(90,120,200,.26), transparent 65%); }
+.wrap { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+.glass {
+  position: relative; border-radius: 24px; isolation: isolate;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+  -webkit-backdrop-filter: blur(22px) saturate(170%); backdrop-filter: blur(22px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 20px 60px rgba(0,0,0,.55);
+}
+.glass::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,.07) 30%, rgba(255,255,255,.02) 60%, rgba(255,255,255,.25));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+}
+nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+.logo { display: flex; align-items: center; gap: 12px; font-weight: 650; font-size: 18px; text-decoration: none; }
+.logo img { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 0 0 1px rgba(255,255,255,.2); }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 14px; text-decoration: none; font-weight: 600; font-size: 15px;
+  background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+.btn.primary { background: linear-gradient(180deg, #fff, #d5dbe6); color: #0b0d12; box-shadow: inset 0 1px 0 #fff, 0 10px 26px rgba(200,210,235,.2); }
+.hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; padding: 56px 0 72px; }
+h1 { font-size: clamp(40px, 6vw, 68px); line-height: 1.02; letter-spacing: -.04em; margin: 0 0 20px; font-weight: 700; }
+h1 .silver { background: linear-gradient(180deg, #fff 25%, #97a2b8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lede { font-size: 19px; color: var(--muted); max-width: 520px; margin: 0 0 28px; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.phones { position: relative; height: 620px; }
+.phone { position: absolute; width: 270px; border-radius: 40px; padding: 10px; }
+.phone img { display: block; width: 100%; border-radius: 31px; }
+.phone.one { right: 110px; top: 0; z-index: 2; }
+.phone.two { right: -10px; top: 70px; transform: rotate(4deg); opacity: .92; }
+h2 { font-size: 34px; letter-spacing: -.03em; margin: 0 0 10px; }
+.sub { color: var(--muted); margin: 0 0 32px; max-width: 640px; }
+section { padding: 56px 0; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.card { padding: 24px; }
+.card h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.01em; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.card .k { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px; }
+.steps { counter-reset: s; display: grid; gap: 12px; }
+.step { display: grid; grid-template-columns: 44px 1fr; gap: 16px; padding: 20px 22px; align-items: start; }
+.step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px;
+  background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); font-weight: 700; }
+.step b { display: block; margin-bottom: 2px; }
+.step span { color: var(--muted); font-size: 15px; }
+.stat { font-size: 40px; font-weight: 700; letter-spacing: -.03em; }
+.stat small { font-size: 16px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+.shots { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x mandatory; }
+.shots figure { flex: none; width: 250px; margin: 0; scroll-snap-align: start; }
+.shots img { width: 100%; border-radius: 26px; box-shadow: 0 0 0 1px rgba(255,255,255,.14), 0 18px 40px rgba(0,0,0,.6); }
+.shots figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; text-align: center; }
+.stack { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.stack span { font-size: 13px; padding: 5px 10px; border-radius: 9px; background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); color: var(--muted); }
+pre { margin: 0; padding: 20px 22px; overflow-x: auto; font: 14px/1.6 ui-monospace, "SF Mono", Consolas, monospace; color: #dfe6f3; }
+footer { padding: 40px 0 60px; color: var(--faint); font-size: 14px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; padding-top: 24px; }
+  .phones { height: 520px; }
+  .phone { width: 230px; } .phone.one { left: 0; right: auto; } .phone.two { left: 150px; right: auto; }
+  .grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<canvas id="sky" aria-hidden="true"></canvas>
+<div class="glow a"></div><div class="glow b"></div>
+
+<div class="wrap">
+  <nav>
+    <a class="logo" href="#"><img src="icon.png" alt="">TrainTripTime</a>
+    <a class="btn" href="https://github.com/shreywy/TrainTripTime">GitHub</a>
+  </nav>
+
+  <div class="hero">
+    <div>
+      <h1>Be downtown by noon.<br><span class="silver">Wake up at nine.</span></h1>
+      <p class="lede">TrainTripTime works backwards from when you need to arrive — through the GO train timetable,
+        live delays, and your local bus — to the minute you should leave home. Then it shows its work.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/shreywy/TrainTripTime#run-it">Run it yourself</a>
+        <a class="btn" href="https://github.com/shreywy/TrainTripTime#engineering-notes">Engineering notes</a>
+      </div>
+      <div class="stack"><span>Python · stdlib only</span><span>GTFS + GTFS-realtime</span><span>systemd socket activation</span><span>Vanilla JS PWA</span><span>Raspberry Pi</span></div>
+    </div>
+    <div class="phones">
+      <div class="phone glass one"><img src="screenshots/plan-mobile.png" alt="A plan: wake up, leave home, bus, train"></div>
+      <div class="phone glass two"><img src="screenshots/proof-mobile.png" alt="The worked-out proof of a plan"></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Built for how commuting actually goes</h2>
+    <p class="sub">Trip planners answer "what if I leave now?" This answers "when do I have to leave?" — with your own rules.</p>
+    <div class="grid">
+      <div class="glass card"><div class="k">Backwards</div><h3>From arrival to alarm</h3><p>Latest train that makes it, the bus that lands you on the platform in your window, when to leave, when to wake.</p></div>
+      <div class="glass card"><div class="k">Live</div><h3>Knows what's running</h3><p>GO departure status and platforms, line alerts, live bus predictions, and construction notices for the week you pick.</p></div>
+      <div class="glass card"><div class="k">Proof</div><h3>Shows its work</h3><p>Every rule applied, every bus and train considered and why it lost, plus the exact feed versions used.</p></div>
+      <div class="glass card"><div class="k">Honest</div><h3>Says when there's no train</h3><p>Weekend short-turns are detected from the timetable itself and reported plainly, with the closest option.</p></div>
+      <div class="glass card"><div class="k">Yours</div><h3>Your stop, your habits</h3><p>Setup geocodes your address, takes any agency's GTFS, and lets you prefer the routes you'd really ride.</p></div>
+      <div class="glass card"><div class="k">Light</div><h3>Zero MB when idle</h3><p>Socket-activated on a Raspberry Pi: it starts on your first tap and exits when you're done.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The algorithm</h2>
+    <p class="sub">Deterministic, explainable, and small enough to read in one sitting.</p>
+    <div class="steps">
+      <div class="glass step"><div><b>Pick the train</b><span>From that date's service calendar, the latest trip from your station that reaches the destination by your target — skipping any the live board says are cancelled.</span></div></div>
+      <div class="glass step"><div><b>Fit the bus</b><span>Bus trips that board near home and reach the station inside [departure − max wait, departure − platform buffer].</span></div></div>
+      <div class="glass step"><div><b>Rank with preferences</b><span>Preferred route in window → preferred route a little early → any route in window; within a tier, the one that lets you leave latest.</span></div></div>
+      <div class="glass step"><div><b>Walk, leave, wake</b><span>OpenStreetMap walking time (with per-stop overrides) plus your buffer gives the leave time; your prep rule gives the alarm.</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Engineering under constraints</h2>
+    <p class="sub">It lives on a shared 1 GB Raspberry Pi next to other services, so every byte had to justify itself.</p>
+    <div class="grid">
+      <div class="glass card"><div class="stat">118 → 1 <small>MB</small></div><p>GO's stop_times.txt is streamed row by row and reduced to the trips that matter; requests only ever read the small index.</p></div>
+      <div class="glass card"><div class="stat">0 <small>MB idle</small></div><p>systemd holds the port and hands the socket over on demand; the server exits after ten quiet minutes.</p></div>
+      <div class="glass card"><div class="stat">0 <small>deps</small></div><p>Standard-library Python and vanilla JS. No build step, no package installs on the Pi.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Screens</h2>
+    <p class="sub">Designed mobile-first to live on a home screen.</p>
+    <div class="shots">
+      <figure><img src="screenshots/plan-mobile.png" alt=""><figcaption>The plan</figcaption></figure>
+      <figure><img src="screenshots/proof-mobile.png" alt=""><figcaption>How it was worked out</figcaption></figure>
+      <figure><img src="screenshots/noroute-mobile.png" alt=""><figcaption>Construction day</figcaption></figure>
+      <figure><img src="screenshots/setup-mobile.png" alt=""><figcaption>Setup</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Run it</h2>
+    <p class="sub">Python 3.10+. Open the page and it walks you through setup.</p>
+    <div class="glass"><pre>git clone https://github.com/shreywy/TrainTripTime.git
+cd TrainTripTime
+python server.py        # → http://localhost:8765</pre></div>
+  </section>
+
+  <footer>
+    <span>GO Transit data © Metrolinx (open data). Not affiliated with any transit agency.</span>
+    <a href="https://github.com/shreywy/TrainTripTime">github.com/shreywy/TrainTripTime</a>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const c = document.getElementById("sky"), ctx = c.getContext("2d");
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let stars = [], w, h;
+  function seed() {
+    const dpr = Math.min(devicePixelRatio || 1, 2); w = innerWidth; h = innerHeight;
+    c.width = w * dpr; c.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    stars = Array.from({ length: Math.round(w * h / 5200) }, () => ({ x: Math.random() * w, y: Math.random() * h,
+      r: Math.random() < .06 ? 1.2 + Math.random() * .8 : .3 + Math.random() * .7, a: .18 + Math.random() * .6,
+      p: Math.random() * 6.3, s: .4 + Math.random() * 1.4 }));
+  }
+  function draw(t) {
+    ctx.clearRect(0, 0, w, h);
+    for (const s of stars) {
+      const a = s.a * (still ? 1 : .55 + .45 * Math.sin(t / 1000 * s.s + s.p));
+      ctx.fillStyle = `rgba(225,232,255,${a})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill();
+    }
+  }
+  let last = 0; const loop = t => { if (t - last > 40) { draw(t); last = t; } requestAnimationFrame(loop); };
+  seed(); addEventListener("resize", seed); still ? draw(0) : requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

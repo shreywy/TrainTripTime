@@ -1,0 +1,13 @@
+[Unit]
+Description=TrainTripTime (started on demand by commute-tool.socket, exits when idle)
+Requires=commute-tool.socket
+After=network-online.target
+
+[Service]
+# Change these to your user and checkout path.
+User=pi
+WorkingDirectory=/home/pi/TrainTripTime
+ExecStart=/usr/bin/python3 server.py
+Environment=PYTHONUNBUFFERED=1
+Nice=10
+MemoryMax=200M

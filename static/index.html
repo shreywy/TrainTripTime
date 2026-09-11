@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TrainTripTime">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<title>TrainTripTime</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<canvas id="sky" aria-hidden="true"></canvas>
+<div class="glow a"></div><div class="glow b"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="lenses"></defs></svg>
+
+<main>
+  <header>
+    <div class="brand"><img src="/icons/icon-192.png" alt=""><h1>TrainTripTime</h1></div>
+    <div class="head-right">
+      <div class="feed" id="feed"><i></i><span>Loading…</span></div>
+      <a class="gear" href="/setup" aria-label="Settings" title="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <section class="glass pad">
+    <div class="strip-head">
+      <p class="label">Be at <span id="dest">Union</span> by</p>
+      <div class="right"><button class="today-btn" id="toToday" hidden>Today</button><span id="month"></span></div>
+    </div>
+    <div class="days" id="days" role="group" aria-label="Day"></div>
+    <div class="time-row">
+      <label class="select">
+        <select id="time" aria-label="Arrival time"></select>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </label>
+      <button class="iconbtn" id="refresh" aria-label="Re-check schedules" title="Re-check schedules">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <div id="out"></div>
+</main>
+
+<script src="/sky.js"></script>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+// ---------- helpers ----------------------------------------------------------------
+function fmt(hhmm) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${(h % 24 % 12) || 12}:${String(m).padStart(2, "0")} ${h % 24 < 12 ? "AM" : "PM"}`;
+}
+const fmtShort = hhmm => fmt(hhmm).replace(/ [AP]M$/, "");
+const ampm = hhmm => Number(hhmm.split(":")[0]) % 24 < 12 ? "AM" : "PM";
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const titleCase = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).replace(/^\d+\w?\s/, "");
+const shortStop = s => s.replace(/ (Pkwy|Pky|Rd|Dr)\b.*/, " $1").slice(0, 22);
+const stopName = s => s.replace(/\s*-\s*Route.*$|\s+Route \S+ Stop$/, "");
+const place = s => (s || "").replace(/ Station GO$| GO$/, "");
+const chev = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+const toMin = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+
+// ---------- controls ---------------------------------------------------------------
+const params = new URLSearchParams(location.search);  // ?date=YYYY-MM-DD&arrive=HH:MM deep links
+const state = { date: null, time: params.get("arrive") || store.get("arrive") || "12:00" };
+const PAST_DAYS = 14, FUTURE_DAYS = 90;
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function buildDays() {
+  const wrap = $("#days"), today = new Date(), names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  wrap.innerHTML = "";
+  for (let i = -PAST_DAYS; i <= FUTURE_DAYS; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+    const b = document.createElement("button");
+    b.className = "day" + (d.getDay() % 6 === 0 ? " weekend" : "") + (i < 0 ? " past" : "");
+    b.dataset.date = iso(d);
+    b.dataset.month = `${MONTHS[d.getMonth()]}${d.getFullYear() !== today.getFullYear() ? " " + d.getFullYear() : ""}`;
+    b.innerHTML = `<small>${i === 0 ? "Today" : names[d.getDay()]}</small><b>${d.getDate()}</b>`;
+    b.onclick = () => { state.date = b.dataset.date; syncDays(); plan(); };
+    wrap.appendChild(b);
+  }
+  state.date = params.get("date") || iso(today);  // open on today unless linked to a day
+  syncDays();
+  requestAnimationFrame(() => scrollToToday(false));
+}
+function syncDays() { document.querySelectorAll(".day").forEach(b => b.setAttribute("aria-pressed", b.dataset.date === state.date)); }
+
+const todayBtn = () => $("#days").children[PAST_DAYS];
+// Smooth scrolling on a snap container doesn't always animate (some browsers skip it),
+// so land on the target directly if it hasn't got there shortly after.
+function scrollStrip(left, smooth = true) {
+  const wrap = $("#days");
+  wrap.scrollTo({ left, behavior: smooth && !reduceMotion ? "smooth" : "auto" });
+  setTimeout(() => {
+    if (Math.abs(wrap.scrollLeft - left) > 2) wrap.scrollLeft = left;
+    onStripScroll();
+  }, smooth ? 450 : 0);
+}
+function scrollToToday(smooth = true) { scrollStrip(todayBtn().offsetLeft, smooth); }
+function onStripScroll() {
+  const wrap = $("#days"), step = wrap.children[1].offsetLeft - wrap.children[0].offsetLeft;
+  const first = Math.max(0, Math.round(wrap.scrollLeft / step));
+  $("#month").textContent = wrap.children[Math.min(first + 3, wrap.children.length - 1)].dataset.month;
+  const t = todayBtn().offsetLeft - wrap.scrollLeft;
+  $("#toToday").hidden = t > -step / 2 && t < wrap.clientWidth - step / 2;
+}
+// Touch swipes scroll natively; a mouse needs click-and-drag.
+function dragStrip() {
+  const wrap = $("#days");
+  let down = null, moved = false;
+  wrap.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    down = { x: e.clientX, left: wrap.scrollLeft }; moved = false;
+  });
+  addEventListener("pointermove", e => {
+    if (!down) return;
+    const dx = e.clientX - down.x;
+    if (!moved && Math.abs(dx) > 5) { moved = true; wrap.classList.add("dragging"); }
+    if (moved) wrap.scrollLeft = down.left - dx;
+  });
+  addEventListener("pointerup", () => {
+    if (!down) return;
+    down = null;
+    if (!moved) return;
+    const step = wrap.children[1].offsetLeft - wrap.children[0].offsetLeft;
+    wrap.classList.remove("dragging");
+    scrollStrip(Math.round(wrap.scrollLeft / step) * step);
+  });
+  wrap.addEventListener("scroll", onStripScroll, { passive: true });
+  $("#toToday").onclick = () => scrollToToday();
+}
+function buildTimes() {
+  const sel = $("#time");
+  for (let t = 6 * 60; t <= 22 * 60; t += 15) {
+    const v = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+    sel.add(new Option(fmt(v), v));
+  }
+  if (![...sel.options].some(o => o.value === state.time)) state.time = "12:00";
+  sel.value = state.time;
+  sel.onchange = () => { state.time = sel.value; store.set("arrive", sel.value); plan(); };
+}
+
+// ---------- rendering ----------------------------------------------------------------
+const noticeHtml = n => `<div class="notice"><h3>${esc(n.title)}</h3>${n.text.map(t => `<p>${esc(t)}</p>`).join("")}</div>`;
+function notices(list) {
+  if (!list || !list.length) return "";
+  return `<details class="glass"><summary>GO service notices (${list.length}) ${chev}</summary>
+    <div class="inner">${list.map(noticeHtml).join("")}</div></details>`;
+}
+function liveAlerts(list) {
+  if (!list || !list.length) return "";
+  return `<details class="glass warn"><summary><span><span class="label" style="margin:0">Live GO alerts</span>
+    <span style="display:block;font-weight:500;font-size:14px;margin-top:4px">${list.map(a => esc(a.title)).join("<br>")}</span></span> ${chev}</summary>
+    <div class="inner">${list.map(noticeHtml).join("")}</div></details>`;
+}
+function returns(list, st) {
+  const from = place(st.destination), to = place(st.home_station);
+  const body = list && list.length
+    ? `<div class="returns">${list.map(t => `<div class="rt">${t.mode === "bus" ? `<span class="tag gobus">Bus</span>` : ""}<b>${fmt(t.dep)}</b><span class="arr">→ ${fmt(t.arr)}</span></div>`).join("")}</div>`
+    : `<p class="meta" style="margin:0">No GO trains or buses from ${esc(from)} to ${esc(to)} this day.</p>`;
+  return `<details class="glass"><summary>Trips back: ${esc(from)} → ${esc(to)} (${(list || []).length}) ${chev}</summary>
+    <div class="inner">${body}</div></details>`;
+}
+function trainLive(l) {
+  if (!l) return "";
+  const s = l.status;
+  const text = s.includes("cancel") ? "Cancelled" : l.delay_min > 0 ? `${l.delay_min} min late${l.expected ? " · now " + fmtShort(l.expected) : ""}`
+    : s === "ontime" ? "On time" : s.charAt(0).toUpperCase() + s.slice(1);
+  const bad = s.includes("cancel") || l.delay_min > 0;
+  return `<div class="live ${bad ? "late" : ""}">Live · ${esc(text)}${l.platform ? " · Platform " + esc(l.platform) : ""}</div>`;
+}
+
+function renderNone(p) {
+  const cut = p.kind === "no_service";
+  const why = { no_service: "Service cancelled or cut short", out_of_range: "Timetable not published yet",
+                too_early: "Too early for GO service", no_route: "No connection works" }[p.kind] || "No route";
+  const icon = cut
+    ? `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M8 21l2-4M16 21l-2-4M4 4l16 16"/></svg>`
+    : `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>`;
+  const lead = cut && p.notices && p.notices[0];
+  const msg = p.error.replace(/^No routes found — /, "");
+  $("#out").innerHTML = `
+    <section class="glass none" style="margin-top:12px">
+      <div class="icon">${icon}</div>
+      <h2>No routes found</h2>
+      <p class="why">${esc(why)}</p>
+      <p>${esc(msg[0].toUpperCase() + msg.slice(1))}</p>
+      ${(p.details || []).map(d => `<p>${esc(d)}</p>`).join("")}
+      ${lead ? `<div class="notice">${noticeHtml(lead).replace(/^<div class="notice">|<\/div>$/g, "")}</div>` : ""}
+    </section>
+    ${liveAlerts(p.live_alerts)}
+    ${notices(lead ? p.notices.slice(1) : p.notices)}
+    ${returns(p.return_trips, p.stations)}`;
+  glassUp($("#out"));
+}
+
+function render(p) {
+  if (!p.ok) return renderNone(p);
+  const s = p.summary, [walk, bus, wait, train] = p.legs;
+  const liveBus = bus.live && bus.live.predicted
+    ? `<div class="live ${bus.live.late ? "late" : ""}">Live · ${esc(bus.live.status)} · ${fmtShort(bus.live.predicted)}</div>` : "";
+  const kind = train.type === "bus" ? "GO bus" : "GO train";
+  const spare = toMin(p.arrive_by) - toMin(train.arrive);
+
+  $("#out").innerHTML = `
+  <section class="glass hero" style="margin-top:12px">
+    <div><p class="label">Wake up</p><div class="big silver">${fmtShort(s.wake)}</div><div class="sub">${ampm(s.wake)} · ${esc(p.weekday)}</div></div>
+    <div><p class="label">Leave home</p><div class="big accent">${fmtShort(s.leave)}</div><div class="sub">${ampm(s.leave)} · ${walk.minutes} min walk</div></div>
+  </section>
+
+  ${p.warnings.length ? `<section class="glass pad warn"><p class="label">Heads up</p>${p.warnings.map(w => `<p>${esc(w)}</p>`).join("")}</section>` : ""}
+
+  <section class="glass pad">
+    <ol class="timeline">
+      <li class="leg"><div class="t">${fmtShort(walk.depart)}</div><div class="rail"><div class="dot"></div></div>
+        <div class="body"><div class="title">Leave home</div><div class="meta">Walk${walk.metres ? " " + walk.metres + " m" : ""} to ${esc(walk.to)} · ${walk.minutes} min + ${walk.buffer_min} min early</div></div></li>
+      <li class="leg bus"><div class="t">${fmtShort(bus.depart)}</div><div class="rail"><div class="dot"></div></div>
+        <div class="body"><div class="title"><span class="tag bus">${esc(bus.route)}</span>${esc(titleCase(bus.headsign))}</div>
+        <div class="meta">From ${esc(bus.from)} · stop #${esc(bus.stop_code)}</div>${liveBus}</div></li>
+      <li class="leg"><div class="t">${fmtShort(bus.arrive)}</div><div class="rail"><div class="dot"></div></div>
+        <div class="body"><div class="title">${esc(stopName(bus.to))}</div><div class="meta">${wait.minutes} min until the ${kind.replace("GO ", "")}</div></div></li>
+      <li class="leg train"><div class="t">${fmtShort(train.depart)}</div><div class="rail"><div class="dot"></div></div>
+        <div class="body"><div class="title"><span class="tag train">${esc(train.line)}</span>${kind} #${esc(train.number)}</div>
+        <div class="meta">${esc(train.from)} → ${esc(train.to)} · ${train.stops.length - 2 ? (train.stops.length - 2) + (train.stops.length === 3 ? " stop" : " stops") : "express"}</div>${trainLive(train.live)}</div></li>
+      <li class="leg end"><div class="t">${fmtShort(train.arrive)}</div><div class="rail"><div class="dot"></div></div>
+        <div class="body"><div class="title">${esc(train.to)}</div><div class="meta">Target ${fmt(p.arrive_by)} · ${spare ? spare + " min to spare" : "right on time"}</div></div></li>
+    </ol>
+    ${p.backup_bus ? `<div class="backup">Backup: Route ${esc(p.backup_bus.route)} at ${fmtShort(p.backup_bus.depart)} from ${esc(p.backup_bus.board_name)} — leave by ${fmtShort(p.backup_bus.leave)}</div>` : ""}
+    <div class="actions">
+      <a class="btn primary" href="${esc(p.calendar.google)}" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        Add to Google Calendar · leave ${fmt(s.leave)}</a>
+    </div>
+  </section>
+
+  ${liveAlerts(p.live_alerts)}
+
+  <details class="glass">
+    <summary>How this was worked out ${chev}</summary>
+    <div class="inner">
+      <ol class="steps">${p.reasoning.map(r => `<li>${esc(r)}</li>`).join("")}</ol>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Bus</th><th>Stop</th><th>Dep</th><th>Arr</th><th>Leave</th><th></th></tr></thead>
+        <tbody>${p.considered.buses.map(b => `<tr class="${b.status === "chosen" ? "chosen" : (b.status === "fits" ? "" : "dim")}">
+          <td>${esc(b.route)}</td><td>${esc(shortStop(b.board))}</td><td>${fmtShort(b.dep)}</td><td>${fmtShort(b.arr)}</td><td>${fmtShort(b.leave)}</td><td>${esc(b.status)}</td></tr>`).join("")}</tbody>
+      </table></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Train</th><th>${esc(place(p.stations.home_station))}</th><th>${esc(place(p.stations.destination))}</th><th></th></tr></thead>
+        <tbody>${p.considered.trains.map(t => `<tr class="${t.status === "chosen" ? "chosen" : "dim"}">
+          <td>${esc(t.line)} #${esc(t.number)}</td><td>${fmtShort(t.dep)}</td><td>${fmtShort(t.arr)}</td><td>${esc(t.status)}</td></tr>`).join("")}</tbody>
+      </table></div>
+      <div class="sources">
+        Checked ${esc(p.checked_at)} ·
+        ${Object.values(p.sources).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a> v${esc(s.version)} (${esc(s.valid)})`).join(" · ")}
+        ${p.live_errors.length ? `<br>${p.live_errors.map(esc).join("<br>")}` : ""}
+      </div>
+    </div>
+  </details>
+  ${notices(p.notices)}
+  ${returns(p.return_trips, p.stations)}`;
+  glassUp($("#out"));
+}
+
+// ---------- data ----------------------------------------------------------------------
+let seq = 0;
+async function plan() {
+  const my = ++seq;
+  $("#refresh").classList.add("spin");
+  if (!$("#out").children.length) $("#out").innerHTML = `<div class="glass skeleton"></div><div class="glass skeleton"></div>`;
+  try {
+    const r = await fetch(`/api/plan?date=${state.date}&arrive=${state.time}`);
+    const p = await r.json();
+    if (my !== seq) return;
+    if (r.status === 409 && p.setup) { location.href = "/setup"; return; }
+    if (r.status === 503) { $("#out").innerHTML = `<div class="empty">${esc(p.error)}</div>`; setTimeout(plan, 4000); return; }
+    if (p.stations) $("#dest").textContent = place(p.stations.destination);
+    render(p);
+  } catch (e) {
+    if (my === seq) $("#out").innerHTML = `<section class="glass none" style="margin-top:12px"><h2>Couldn't reach the server</h2><p>${esc(e.message)}</p></section>`;
+  } finally {
+    if (my === seq) $("#refresh").classList.remove("spin");
+  }
+}
+async function status() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    const el = $("#feed");
+    if (s.stations) $("#dest").textContent = place(s.stations.destination);
+    if (!s.ready) { el.lastChild.textContent = s.building ? "Loading timetables…" : "Timetables unavailable"; return setTimeout(status, 4000); }
+    const hrs = Math.round((Date.now() / 1000 - Math.min(...Object.values(s.checked))) / 3600);
+    el.classList.toggle("stale", hrs > 24);
+    el.lastChild.textContent = `Checked ${hrs < 1 ? "just now" : hrs + "h ago"}`;
+  } catch {}
+}
+$("#refresh").onclick = plan;
+glassUp();
+buildTimes(); buildDays(); dragStrip(); plan(); status();
+</script>
+</body>
+</html>

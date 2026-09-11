@@ -1,0 +1,39 @@
+{
+  "home": {
+    "label": "",
+    "lat": null,
+    "lon": null
+  },
+  "go": {
+    "from_station": "",
+    "to_station": "UN",
+    "modes": ["train"]
+  },
+  "bus": {
+    "agency_name": "Brampton Transit",
+    "gtfs_url": "https://www.arcgis.com/sharing/rest/content/items/a355aabd5a8c490186bdce559c9c75fb/data",
+    "realtime_trip_updates": "https://gtfs-rt-merge.prod.bt-cadavl.com/BramptonTransit/GTFS/merged_TripUpdate.json",
+    "realtime_alerts": "https://gtfs-rt-merge.prod.bt-cadavl.com/BramptonTransit/GTFS/merged_Alert.json",
+    "stop_radius_m": 900,
+    "station_radius_m": 350,
+    "allowed_routes": [],
+    "preferred_routes": [],
+    "preferred_extra_wait_min": 15,
+    "walk_overrides_min": {}
+  },
+  "rules": {
+    "arrive_buffer_at_union_min": 0,
+    "platform_buffer_min": 5,
+    "max_platform_wait_min": 24,
+    "stop_buffer_min": 4,
+    "wake": { "mode": "start_of_previous_hour", "prep_min": 60 }
+  },
+  "calendar": {
+    "leave_alarms_min": [15, 0],
+    "include_wake_event": true
+  },
+  "refresh_hours": 12,
+  "idle_exit_minutes": 10,
+  "host": "0.0.0.0",
+  "port": 8765
+}

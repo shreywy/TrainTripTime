@@ -1,0 +1,8 @@
+[Unit]
+Description=Commute planner port (starts the app on the first visit)
+
+[Socket]
+ListenStream=8765
+
+[Install]
+WantedBy=sockets.target

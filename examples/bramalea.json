@@ -1,0 +1,6 @@
+{
+  "home": { "label": "Bramalea City Centre, Brampton", "lat": 43.7164, "lon": -79.7224 },
+  "go": { "from_station": "BE", "to_station": "UN" },
+  "bus": { "stop_radius_m": 500, "preferred_routes": [] },
+  "port": 8766
+}
