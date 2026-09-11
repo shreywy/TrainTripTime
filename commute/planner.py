@@ -198,6 +198,11 @@ def plan(index, cfg, date, arrive_by, live=None):
     if w["mode"] == "start_of_previous_hour":
         wake = wake // 3600 * 3600
         reasoning.append(f"Wake {w['prep_min']} min before leaving, rounded down to the hour → {hm(wake)}.")
+    elif w["mode"] == "round_down":
+        step = w.get("round_min", 10) * 60
+        wake = wake // step * step
+        reasoning.append(f"Wake {w['prep_min']} min before leaving, rounded down to the nearest "
+                         f"{step // 60} min → {hm(wake)}.")
     else:
         reasoning.append(f"Wake {w['prep_min']} min before leaving → {hm(wake)}.")
 

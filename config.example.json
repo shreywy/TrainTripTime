@@ -26,7 +26,7 @@
     "platform_buffer_min": 5,
     "max_platform_wait_min": 24,
     "stop_buffer_min": 4,
-    "wake": { "mode": "start_of_previous_hour", "prep_min": 60 }
+    "wake": { "mode": "round_down", "prep_min": 70, "round_min": 10 }
   },
   "calendar": {
     "leave_alarms_min": [15, 0],
