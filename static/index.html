@@ -168,13 +168,28 @@ function liveAlerts(list) {
     <span style="display:block;font-weight:500;font-size:14px;margin-top:4px">${list.map(a => esc(a.title)).join("<br>")}</span></span> ${chev}</summary>
     <div class="inner">${list.map(noticeHtml).join("")}</div></details>`;
 }
-function returns(list, st) {
+function returns(list, st, dateStr) {
   const from = place(st.destination), to = place(st.home_station);
+  const now = new Date(), today = dateStr === iso(now), nowMin = now.getHours() * 60 + now.getMinutes();
+  let prev = -1, nextIdx = -1;
+  const mins = (list || []).map((t, i) => {
+    let m = toMin(t.dep);
+    if (m < prev) m += 1440;              // after-midnight departures keep counting up
+    prev = m;
+    if (today && nextIdx < 0 && m >= nowMin) nextIdx = i;
+    return m;
+  });
   const body = list && list.length
-    ? `<div class="returns">${list.map(t => `<div class="rt">${t.mode === "bus" ? `<span class="tag gobus">Bus</span>` : ""}<b>${fmt(t.dep)}</b><span class="arr">→ ${fmt(t.arr)}</span></div>`).join("")}</div>`
+    ? `<div class="returns">${list.map((t, i) => `<div class="rt${today && mins[i] < nowMin ? " past" : ""}${i === nextIdx ? " next" : ""}">
+        ${t.mode === "bus" ? `<span class="tag gobus">Bus</span>` : ""}<b>${fmt(t.dep)}</b><span class="arr">→ ${fmt(t.arr)}</span>
+        ${mins[i] >= 1440 ? `<span class="nextday">+1 day</span>` : ""}${i === nextIdx ? `<span class="lbl">Next</span>` : ""}</div>`).join("")}</div>`
     : `<p class="meta" style="margin:0">No GO trains or buses from ${esc(from)} to ${esc(to)} this day.</p>`;
-  return `<details class="glass"><summary>Trips back: ${esc(from)} → ${esc(to)} (${(list || []).length}) ${chev}</summary>
+  return `<details class="glass" ontoggle="showNext(this)"><summary>Trips back: ${esc(from)} → ${esc(to)} (${(list || []).length}) ${chev}</summary>
     <div class="inner">${body}</div></details>`;
+}
+function showNext(d) {  // open on the next departure rather than the top of the day
+  const box = d.querySelector(".returns"), n = d.querySelector(".rt.next");
+  if (d.open && box && n) box.scrollTop = Math.max(0, n.offsetTop - box.offsetTop - 72);
 }
 function trainLive(l) {
   if (!l) return "";
@@ -205,7 +220,7 @@ function renderNone(p) {
     </section>
     ${liveAlerts(p.live_alerts)}
     ${notices(lead ? p.notices.slice(1) : p.notices)}
-    ${returns(p.return_trips, p.stations)}`;
+    ${returns(p.return_trips, p.stations, p.date)}`;
   glassUp($("#out"));
 }
 
@@ -272,7 +287,7 @@ function render(p) {
     </div>
   </details>
   ${notices(p.notices)}
-  ${returns(p.return_trips, p.stations)}`;
+  ${returns(p.return_trips, p.stations, p.date)}`;
   glassUp($("#out"));
 }
 
