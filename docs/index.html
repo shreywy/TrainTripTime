@@ -11,7 +11,7 @@
 <style>
 :root { --text:#f5f7fb; --muted:rgba(235,240,250,.64); --faint:rgba(235,240,250,.4); --accent:#6f9bff; --go:#45c07a; }
 * { box-sizing: border-box; }
-html { background: #000; }
+html { background: #000; overflow-x: hidden; }   /* the tilted phone mockup overhangs the grid */
 body { margin: 0; background: #000; color: var(--text); font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
 a { color: inherit; }
 #sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
@@ -54,9 +54,10 @@ section { padding: 56px 0; }
 .card h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.01em; }
 .card p { margin: 0; color: var(--muted); font-size: 15px; }
 .card .k { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px; }
-.steps { counter-reset: s; display: grid; gap: 12px; }
+.steps { display: grid; gap: 12px; }
 .step { display: grid; grid-template-columns: 44px 1fr; gap: 16px; padding: 20px 22px; align-items: start; }
-.step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px;
+/* the number needs its own element: .glass::before is already the card's rim */
+.step .n { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px;
   background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); font-weight: 700; }
 .step b { display: block; margin-bottom: 2px; }
 .step span { color: var(--muted); font-size: 15px; }
@@ -122,10 +123,10 @@ footer { padding: 40px 0 60px; color: var(--faint); font-size: 14px; display: fl
     <h2>The algorithm</h2>
     <p class="sub">Deterministic, explainable, and small enough to read in one sitting.</p>
     <div class="steps">
-      <div class="glass step"><div><b>Pick the train</b><span>From that date's service calendar, the latest trip from your station that reaches the destination by your target — skipping any the live board says are cancelled.</span></div></div>
-      <div class="glass step"><div><b>Fit the bus</b><span>Bus trips that board near home and reach the station inside [departure − max wait, departure − platform buffer].</span></div></div>
-      <div class="glass step"><div><b>Rank with preferences</b><span>Preferred route in window → preferred route a little early → any route in window; within a tier, the one that lets you leave latest.</span></div></div>
-      <div class="glass step"><div><b>Walk, leave, wake</b><span>OpenStreetMap walking time (with per-stop overrides) plus your buffer gives the leave time; your prep rule gives the alarm.</span></div></div>
+      <div class="glass step"><div class="n">1</div><div><b>Pick the train</b><span>From that date's service calendar, the latest trip from your station that reaches the destination by your target — skipping any the live board says are cancelled.</span></div></div>
+      <div class="glass step"><div class="n">2</div><div><b>Fit the bus</b><span>Bus trips that board near home and reach the station inside [departure − max wait, departure − platform buffer].</span></div></div>
+      <div class="glass step"><div class="n">3</div><div><b>Rank with preferences</b><span>Preferred route in window → preferred route a little early → any route in window; within a tier, the one that lets you leave latest.</span></div></div>
+      <div class="glass step"><div class="n">4</div><div><b>Walk, leave, wake</b><span>OpenStreetMap walking time (with per-stop overrides) plus your buffer gives the leave time; your prep rule gives the alarm.</span></div></div>
     </div>
   </section>
 
