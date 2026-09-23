@@ -177,7 +177,8 @@ def _make_plan(q):
     p["live_errors"] = sum((v.get("errors", []) for v in live.values() if isinstance(v, dict)), [])
     p["checked_at"] = tz.now().strftime("%Y-%m-%d %H:%M")
     qs = urllib.parse.urlencode({"date": p["date"], "arrive": p["arrive_by"]})
-    p["calendar"] = {"ics": f"/api/plan.ics?{qs}", "google": calendar_export.google_link(p, CFG)}
+    p["calendar"] = {"ics": f"/api/plan.ics?{qs}", "google": calendar_export.google_link(p, CFG),
+                     "redirect": f"/api/gcal?{qs}"}
     return 200, p
 
 
@@ -264,6 +265,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(code if code != 200 else 422, p)
                 self._send(200, calendar_export.ics(p, CFG), "text/calendar; charset=utf-8",
                            {"Content-Disposition": f'inline; filename="traintriptime-{p["date"]}.ics"'})
+            elif u.path == "/api/gcal":
+                # Redirect rather than linking straight to Google: iOS hands a tapped
+                # calendar.google.com link to the Google Calendar app, which ignores the
+                # event parameters. It doesn't re-check after a redirect, so this lands
+                # on the prefilled event page in the browser instead.
+                code, p = make_plan(q)
+                if not p.get("ok"):
+                    return self._json(code if code != 200 else 422, p)
+                self.send_response(302)
+                self.send_header("Location", calendar_export.google_link(p, CFG))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
             elif u.path == "/api/status":
                 load_index()
                 idx = STATE["index"] or {}
