@@ -185,6 +185,9 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 .btn.primary:hover { filter: brightness(1.04); }
 .btn[disabled] { opacity: .5; cursor: default; }
 
+.actions .alt { display: block; text-align: center; margin-top: 10px; font-size: 13px; color: var(--muted); text-decoration: none; }
+.actions .alt:hover { color: var(--text); }
+
 /* disclosure */
 details.glass summary {
   list-style: none; cursor: pointer; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; gap: 10px;

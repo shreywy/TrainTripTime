@@ -191,6 +191,18 @@ function showNext(d) {  // open on the next departure rather than the top of the
   const box = d.querySelector(".returns"), n = d.querySelector(".rt.next");
   if (d.open && box && n) box.scrollTop = Math.max(0, n.offsetTop - box.offsetTop - 72);
 }
+// Home-screen web apps on iOS ignore target="_blank", so the tap did nothing there.
+function wireCalendar() {
+  const a = $("#gcal");
+  if (!a) return;
+  a.addEventListener("click", e => {
+    const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+    if (!standalone) return;                    // a normal browser tab handles the link fine
+    e.preventDefault();
+    const w = window.open(a.href, "_blank");
+    if (!w) location.href = a.href;             // no new window in the web app: go there instead
+  });
+}
 function trainLive(l) {
   if (!l) return "";
   const s = l.status;
@@ -257,9 +269,10 @@ function render(p) {
     </ol>
     ${p.backup_bus ? `<div class="backup">Backup: Route ${esc(p.backup_bus.route)} at ${fmtShort(p.backup_bus.depart)} from ${esc(p.backup_bus.board_name)} — leave by ${fmtShort(p.backup_bus.leave)}</div>` : ""}
     <div class="actions">
-      <a class="btn primary" href="${esc(p.calendar.google)}" target="_blank" rel="noopener">
+      <a class="btn primary" id="gcal" href="${esc(p.calendar.google)}" target="_blank" rel="noopener">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
         Add to Google Calendar · leave ${fmt(s.leave)}</a>
+      <a class="alt" href="${esc(p.calendar.ics)}">or add to Apple Calendar</a>
     </div>
   </section>
 
@@ -288,6 +301,7 @@ function render(p) {
   </details>
   ${notices(p.notices)}
   ${returns(p.return_trips, p.stations, p.date)}`;
+  wireCalendar();
   glassUp($("#out"));
 }
 
