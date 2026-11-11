@@ -10,10 +10,10 @@
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
 <title>TrainTripTime</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="stylesheet" href="/app.css">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="app.css">
 </head>
 <body>
 <canvas id="sky" aria-hidden="true"></canvas>
@@ -22,10 +22,10 @@
 
 <main>
   <header>
-    <div class="brand"><img src="/icons/icon-192.png" alt=""><h1>TrainTripTime</h1></div>
+    <div class="brand"><img src="icons/icon-192.png" alt=""><h1>TrainTripTime</h1></div>
     <div class="head-right">
       <div class="feed" id="feed"><i></i><span>Loading…</span></div>
-      <a class="gear" href="/setup" aria-label="Settings" title="Settings">
+      <a class="gear" href="setup" aria-label="Settings" title="Settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </a>
     </div>
@@ -51,7 +51,7 @@
   <div id="out"></div>
 </main>
 
-<script src="/sky.js"></script>
+<script src="sky.js"></script>
 <script>
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -305,16 +305,26 @@ function render(p) {
 }
 
 // ---------- data ----------------------------------------------------------------------
+const STATIC_PLANS = null;  // build_static.py sets this for the server-less (GitHub Pages) copy
+if (STATIC_PLANS) $(".gear").remove();
+async function getPlan(date, time) {
+  if (!STATIC_PLANS) return fetch(`api/plan?date=${date}&arrive=${time}`);
+  const r = await fetch(`${STATIC_PLANS}${date}.json`, { cache: "no-store" });
+  if (!r.ok) return new Response(JSON.stringify({ error: "This copy only has plans for the next two weeks." }), { status: 404 });
+  const d = await r.json();
+  return new Response(JSON.stringify({ ...d.common, ...d.plans[time] }));
+}
 let seq = 0;
 async function plan() {
   const my = ++seq;
   $("#refresh").classList.add("spin");
   if (!$("#out").children.length) $("#out").innerHTML = `<div class="glass skeleton"></div><div class="glass skeleton"></div>`;
   try {
-    const r = await fetch(`/api/plan?date=${state.date}&arrive=${state.time}`);
+    const r = await getPlan(state.date, state.time);
     const p = await r.json();
     if (my !== seq) return;
-    if (r.status === 409 && p.setup) { location.href = "/setup"; return; }
+    if (r.status === 409 && p.setup) { location.href = "setup"; return; }
+    if (r.status === 404) { $("#out").innerHTML = `<div class="empty">${esc(p.error)}</div>`; return; }
     if (r.status === 503) { $("#out").innerHTML = `<div class="empty">${esc(p.error)}</div>`; setTimeout(plan, 4000); return; }
     if (p.stations) $("#dest").textContent = place(p.stations.destination);
     render(p);
@@ -326,7 +336,7 @@ async function plan() {
 }
 async function status() {
   try {
-    const s = await (await fetch("/api/status")).json();
+    const s = await (await fetch(STATIC_PLANS ? "status.json" : "api/status", { cache: "no-store" })).json();
     const el = $("#feed");
     if (s.stations) $("#dest").textContent = place(s.stations.destination);
     if (!s.ready) { el.lastChild.textContent = s.building ? "Loading timetables…" : "Timetables unavailable"; return setTimeout(status, 4000); }
